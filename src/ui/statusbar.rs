@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::io::{self, Write};
 
 use cursive::align::HAlign;
 use cursive::event::{Event, EventResult, MouseButton, MouseEvent};
@@ -117,7 +118,7 @@ impl View for StatusBar {
             printer.print((0, 0), &"┉".repeat(printer.size.x));
         });
 
-        if let Some(ref t) = self.queue.get_current() {
+        if let Some(t) = self.queue.get_current() {
             let elapsed = self.spotify.get_current_progress();
             let elapsed_ms = elapsed.as_secs() as u32 * 1000 + elapsed.subsec_millis();
 
@@ -127,7 +128,7 @@ impl View for StatusBar {
                 elapsed.as_secs() % 60
             );
 
-            let saved = if self.library.is_saved_track(t) {
+            let saved = if self.library.is_saved_track(&t) {
                 if self.use_nerdfont {
                     "\u{f62b} "
                 } else {
@@ -152,6 +153,16 @@ impl View for StatusBar {
                 let duration_width = (((printer.size.x as u32) * elapsed_ms) / t.duration) as usize;
                 printer.print((0, 0), &"━".repeat(duration_width + 1));
             });
+
+            // update window title
+            let state_string = match self.spotify.get_current_status() {
+                PlayerEvent::Playing => "Playing",
+                PlayerEvent::Paused => "Paused",
+                PlayerEvent::Stopped | PlayerEvent::FinishedTrack => "",
+            };
+            print!("\x1B]2;[{}] {}\x07", state_string, &t.to_string());
+            io::stdout().flush();
+
         } else {
             let right = repeat.to_string() + shuffle;
             let offset = HAlign::Right.get_offset(right.width(), printer.size.x);
@@ -159,6 +170,10 @@ impl View for StatusBar {
             printer.with_color(style, |printer| {
                 printer.print((offset, 1), &right);
             });
+
+            // clear the window title
+            print!("\x1b]2;ncspot\x07");
+            io::stdout().flush();
         }
     }
 
